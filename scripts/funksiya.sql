@@ -1,0 +1,68 @@
+--bu funksiya bir defe create olunmalidir
+--Datamart hansi userde istifade olunursa o userde create olunmali(bizde scoring useri)
+--artiq run edildiyi uchun bunu tekrar run etmeye ehtiyach yoxdur
+
+----------------------funksiya----------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION ACCPYMTSTDRV(INSTRING VARCHAR2, MKR_DATE VARCHAR2, MX_OVERDUE_PERIOD VARCHAR2)
+
+RETURN VARCHAR2 IS
+
+DIFF NUMBER;
+RESULT VARCHAR2(250);
+LEN NUMBER;
+STR VARCHAR2(1);
+
+
+BEGIN
+
+    DIFF := SUBSTR(MKR_DATE, 1, 4)*12 + SUBSTR(MKR_DATE, 5, 2) - SUBSTR(MX_OVERDUE_PERIOD, 1, 4)*12 - SUBSTR(MX_OVERDUE_PERIOD, 5, 2);
+    LEN := LENGTH(INSTRING);
+    STR := 'N';
+
+    IF DIFF <= 0 THEN
+        RESULT := SUBSTR(INSTRING, DIFF*(-1)+1, LEN + DIFF);
+    ELSE
+        RESULT := LPAD(INSTRING, LEN + DIFF, STR);
+    END IF;
+
+    RETURN RESULT;
+
+END;
+
+CREATE OR REPLACE FUNCTION WPS(INSTRING VARCHAR2)
+RETURN NUMBER
+IS
+T_WPS NUMBER;
+WPS NUMBER;
+NEXT_INDEX NUMBER;
+STRING VARCHAR2(2000);
+T_STR VARCHAR2(10);
+BEGIN
+T_WPS := -1;
+WPS := -1;
+NEXT_INDEX := 1;
+STRING := UPPER(INSTRING);
+T_STR:='';
+IF TRIM(STRING) IS NULL THEN
+RETURN -3;
+END IF;
+FOR I IN 1 .. LENGTH(STRING) LOOP
+T_STR:= SUBSTR(STRING,NEXT_INDEX,1);
+T_WPS :=(CASE
+WHEN T_STR IN ('D','U','X','N') THEN -1
+WHEN T_STR = 'T' THEN 8
+WHEN T_STR = 'L' THEN 9
+WHEN T_STR = 'K' THEN 9
+WHEN T_STR IN ('0','1','2','3','4','5','6','7','8','9') THEN TO_NUMBER(T_STR)
+ELSE -2 END);
+IF T_WPS > WPS THEN
+WPS:=T_WPS;
+END IF;
+NEXT_INDEX := NEXT_INDEX+1;
+END LOOP;
+RETURN WPS;
+END;
+
+
+
