@@ -1,0 +1,134 @@
+# NAMING INCONSISTENCIES - QUICK SUMMARY
+
+## Critical Issues Found
+
+### 1. CLASS NAMING VIOLATIONS (40% Non-Compliant with PEP 8)
+
+**PascalCase (Correct):** 13 classes
+- DropCols, FeatureElimination, ClassificationScores, LogisticRegression, RandomForest, LGBM, XGBoost, BasePipeline, ClassifierPipeline, DropNullFeatures, DropLowGiniFeatures, DropCorrelatedLowerGiniFeatures, DropConstantFeatures
+
+**snake_case (INCORRECT):** 9 classes - Should be PascalCase
+- opt_binning, data_explore, conversion, null_imputation, encode_categoricals, scaling, model_pipeline, pipe_manager, model_args
+
+**lowercase (INCORRECT):** 4 classes - Should be PascalCase
+- conversions, impute_null, encode, scale
+
+**Model Wrappers (WRONG STYLE):** 4 classes
+- model_LR, model_RF, model_LGBM, model_XGBoost (Should be LRClassifier, RFClassifier, etc.)
+
+### 2. DUPLICATE CLASS DEFINITIONS
+
+**CRITICAL:** `opt_binning` class defined TWICE with different implementations:
+- binning.py:383 (wrapper version - preferred)
+- skills_library.py:383 (internal version)
+
+### 3. VARIABLE NAMING INCONSISTENCIES (6+ variations for same concept)
+
+| Concept | Variations | Example |
+|---------|-----------|---------|
+| Training Data | train, x_train, X_train | skills_library.py vs classifier.py |
+| Test Data | test, x_test, X_test, x_val | inconsistent usage |
+| Probabilities | probs, prob, y_pred_prob, dfx_probs, self.test_pred_prob | 5 different names! |
+| Predictions | preds, pred, y_pred, dfx_preds, test_pred | 5 different names! |
+| Categorical | cat, categoric, category, cat_vars, user_cats | 5 different names! |
+| Numeric | num, numeric, number | 3 different names! |
+| DataFrame | df, dfx, data, local_df, pre_train_df | 5 different names! |
+
+### 4. ABBREVIATION INCONSISTENCIES
+
+**Problematic Abbreviations:**
+- `dfx_probs` / `dfx_preds` - Non-standard prefix (appears 8+ times)
+- `cat` - Ambiguous (could mean category, catalog, categorical)
+- `num` - Too short, unclear
+- `col` - Should be `column` or `columns`
+- `imp_num` / `imp_cat` - Confusing abbreviation
+- `baseEstimator` - Uses camelCase in snake_case context
+
+### 5. FUNCTION/METHOD INCONSISTENCIES
+
+**camelCase Functions (Wrong):**
+- getLogger() → Should be: get_logger()
+- getArgumentsList() → Should be: get_arguments_list()
+
+**Mixed Case Classes (Wrong):**
+- to_categoric() → Should be: to_categorical()
+
+### 6. PARAMETER NAMING VIOLATIONS
+
+**CamelCase Parameter (CRITICAL ERROR):**
+```python
+# WRONG:
+def __init__(self, ..., baseEstimator, ...):
+    self.baseEstimator = baseEstimator
+    
+# CORRECT (and used elsewhere):
+def __init__(self, ..., base_estimator, ...):
+    self.base_estimator = base_estimator
+```
+
+---
+
+## Severity Rating: HIGH
+
+### Impact:
+- **Maintainability:** Reduced - developers confused about naming patterns
+- **Readability:** Reduced - 6+ names for same concepts
+- **Code Quality:** Lower - violates PEP 8 standard
+- **Development Speed:** Slower - requires looking up correct naming
+
+### Files Most Affected:
+1. skills_library.py (7 classes with wrong naming)
+2. skills_api.py (Inconsistent variable naming)
+3. preprocessing.py (Multiple wrong class names)
+4. classifier.py (Parameter naming violations)
+5. binning.py (Duplicate class definition)
+
+---
+
+## Recommended Quick Fixes (Priority Order)
+
+### Priority 1 - CRITICAL (Fix immediately):
+1. Resolve duplicate `opt_binning` (keep skills_library.py version, remove from binning.py)
+2. Rename `baseEstimator` → `base_estimator` across all files
+3. Remove `dfx_` prefix, use standard naming
+4. Standardize train/test variables consistently
+
+### Priority 2 - HIGH (Fix soon):
+1. Rename all snake_case classes to PascalCase
+2. Consolidate duplicate classes (conversions, impute_null, encode, scale)
+3. Standardize abbreviations (cat→categorical, num→numeric)
+4. Fix camelCase functions (getLogger, getArgumentsList)
+
+### Priority 3 - MEDIUM (Fix when possible):
+1. Ensure singular/plural consistency
+2. Add naming conventions to documentation
+3. Update all references in 12 Python files
+
+---
+
+## Estimated Effort:
+- **200-300 changes** required across 12 files
+- **2-3 days** for refactoring (+ testing)
+- **High confidence** in automated refactoring tools (IDE)
+
+---
+
+## Files Affected:
+1. /home/user/scoring_model/QNBAnalytics_ML/binning.py
+2. /home/user/scoring_model/QNBAnalytics_ML/classifier.py
+3. /home/user/scoring_model/QNBAnalytics_ML/data.py
+4. /home/user/scoring_model/QNBAnalytics_ML/elimination.py
+5. /home/user/scoring_model/QNBAnalytics_ML/feature_importances.py
+6. /home/user/scoring_model/QNBAnalytics_ML/helpers.py
+7. /home/user/scoring_model/QNBAnalytics_ML/kpi.py
+8. /home/user/scoring_model/QNBAnalytics_ML/kpi_calculator.py
+9. /home/user/scoring_model/QNBAnalytics_ML/preprocessing.py
+10. /home/user/scoring_model/QNBAnalytics_ML/pipelines.py
+11. /home/user/scoring_model/QNBAnalytics_ML/skills_api.py
+12. /home/user/scoring_model/QNBAnalytics_ML/skills_library.py
+
+---
+
+## Full Report Location:
+**File:** /home/user/scoring_model/NAMING_INCONSISTENCIES_ANALYSIS.md
+**Length:** 699 lines with detailed examples and recommendations

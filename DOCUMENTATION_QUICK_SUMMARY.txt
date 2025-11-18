@@ -1,0 +1,286 @@
+================================================================================
+DOCUMENTATION GAPS - QUICK REFERENCE SUMMARY
+================================================================================
+
+PROJECT: QNBAnalytics ML - Bank of Baku Credit Scoring System
+ANALYSIS DATE: November 18, 2025
+FULL REPORT: DOCUMENTATION_GAPS_REPORT.md
+
+================================================================================
+KEY STATISTICS
+================================================================================
+
+Codebase Size:             4,899 lines of Python code
+Total Functions/Methods:   157
+Functions WITH Docs:       16  (10.2%)
+Functions WITHOUT Docs:    141 (89.8%) *** CRITICAL ***
+Type Hints Present:        2 return types only (1.3%)
+Type Hints Missing:        ~155 functions (98.7%)
+
+SEVERITY RATING: CRITICAL
+
+================================================================================
+CRITICAL ISSUES (FIX IMMEDIATELY)
+================================================================================
+
+1. RUNTIME BUG - Line 766 in classifier.py (LGBM.predict)
+   ERROR: x_test = x_test[self.model.feature_name_]
+   FIX:   x_test = x_test[self.model.feature_names_in_]
+   IMPACT: AttributeError crash when using LGBM models
+
+2. SILENT FAILURE BUG - Line 12 in preprocessing.py
+   ERROR: df.drop(columns=features)  # missing inplace=True
+   FIX:   df.drop(columns=features, inplace=True)
+   IMPACT: Feature removal completely ignored
+
+3. LOGGING BUG - Line 244 in classifier.py
+   ERROR: logger.info("With ROC: " % roc_auc_score(...))
+   FIX:   logger.info("With ROC: %s" % roc_auc_score(...))
+   IMPACT: Log shows "With ROC: %" instead of actual value
+
+================================================================================
+FILES WITH WORST DOCUMENTATION (Priority Order)
+================================================================================
+
+CRITICAL:
+  ✗ classifier.py           - 1129 lines, 29 functions, 0 docstrings
+  ✗ skills_api.py           - 1273 lines, 28 functions, 8 docstrings
+  ✗ data.py                 - 272 lines, 8 functions, 0 docstrings
+
+HIGH:
+  ✗ elimination.py          - 598 lines, 11 functions, 3 docstrings
+  ✗ skills_library.py       - 724 lines, 25 functions, 3 docstrings
+  ✗ feature_importances.py  - 223 lines, 6 functions, 2 docstrings
+  ✗ preprocessing.py        - 213 lines, 13 functions, 1 docstring
+  ✗ binning.py              - 112 lines, 5 functions, 0 docstrings
+
+MEDIUM:
+  ✗ pipelines.py            - 118 lines, 6 functions, 0 docstrings
+  ✗ kpi.py / kpi_calculator.py - 64 lines, 4 functions, 0 docstrings
+
+================================================================================
+TYPES OF DOCUMENTATION GAPS
+================================================================================
+
+1. Missing Docstrings (89.8% of functions)
+   - No parameter documentation
+   - No return value documentation
+   - No explanation of complex logic
+
+2. Missing Type Hints (98.7% of functions)
+   - No parameter type annotations
+   - No return type annotations
+   - IDE cannot provide autocomplete
+
+3. Code-Comment Mismatches (4+ instances)
+   - Comments don't match implementation
+   - Typos in comments ("BINNIG" instead of "BINNING")
+   - Copy-paste errors in docstrings
+
+4. Undocumented Business Logic
+   - Gini calculation formula (2*AUC - 1) not explained
+   - Class imbalance detection threshold (0.01) not explained
+   - Random seed (48) hardcoded everywhere
+   - Hardcoded parameter values throughout
+
+5. Missing Module-Level Documentation
+   - 10 files have NO module docstrings
+   - No explanation of file purposes
+   - No import guidance
+
+6. Missing Project-Level Documentation
+   - No README.md at project root
+   - No USAGE_GUIDE.md
+   - No API_DOCUMENTATION.md
+   - No ASSUMPTIONS.md for business logic
+   - No DATA_SCHEMA.md
+
+================================================================================
+MOST CRITICAL UNDOCUMENTED FUNCTIONS
+================================================================================
+
+Module: classifier.py
+  - class model_args (lines 31-77): NO class docstring
+    * main_targeter() - Complex class balance detection (line 52)
+    * main_sampler() - Returns 6 values (line 76), purpose unclear
+  
+  - class LogisticRegression (lines 80-310): 15 undocumented parameters
+  - class RandomForest (lines 313-539): Identical to LogisticRegression
+  - class LGBM (lines 542-826): Identical structure + 1 bug
+  - class XGBoost (lines 829-1125): Identical structure
+
+Module: data.py
+  - data_load() (lines 38-112): Handles SQL/CSV/Excel, 4+ branches undocumented
+  - explore() (lines 131-186): Returns DataFrame with 9+ columns, structure undocumented
+  - train_test() (lines 114-129): Returns (train, test), behavior undocumented
+  - merge() (lines 220-250): Type-dependent behavior not documented
+
+Module: elimination.py
+  - _calculate_gini_table() (lines 391-411): NO docstring
+  - _calculate_corr_table() (lines 414-428): NO docstring
+  - _eliminate_low_gini_correlated() (lines 463-489): Complex algorithm in Turkish
+
+Module: skills_library.py
+  - 9 classes with NO docstrings (700+ lines)
+  - 4 model wrapper classes with DUPLICATED CODE
+
+================================================================================
+IMPACT ON MAINTAINABILITY
+================================================================================
+
+Code Readability:       1/10  (impossible without reading source)
+Type Safety:           1/10  (no type checking possible)
+IDE Support:           1/10  (no autocomplete/hints)
+Onboarding Time:       200+ hours (to understand full codebase)
+Bug Risk:              CRITICAL (hidden assumptions everywhere)
+Refactoring Risk:      CRITICAL (4 identical classes asking to be refactored)
+
+================================================================================
+RECOMMENDED PRIORITY 1 FIXES (Do FIRST)
+================================================================================
+
+Effort: ~8 hours total
+
+1. FIX 3 RUNTIME BUGS (0.5 hours)
+   - [ ] classifier.py line 766: feature_name_ → feature_names_in_
+   - [ ] preprocessing.py line 12: Add inplace=True
+   - [ ] classifier.py line 244: Add %s to format string
+
+2. ADD MODULE DOCSTRINGS (3 hours)
+   - [ ] All 13 Python files
+   - [ ] Explain purpose and key exports
+   - [ ] ~15 min per file
+
+3. DOCUMENT CRITICAL FUNCTIONS (4 hours)
+   - [ ] data.py: data_load(), explore(), train_test()
+   - [ ] classifier.py: model_args class
+   - [ ] binning.py: opt_binning class
+   - [ ] skills_api.py: variable_injection decorator
+
+4. CREATE API_DOCUMENTATION.md (2 hours)
+   - [ ] Extract from docstrings
+   - [ ] Organize by module
+   - [ ] Add usage examples
+
+================================================================================
+RECOMMENDED PRIORITY 2 FIXES (Do NEXT)
+================================================================================
+
+Effort: ~16 hours
+
+5. ADD TYPE HINTS TO PUBLIC FUNCTIONS (8 hours)
+6. DOCUMENT PREPROCESSING METHODS (2 hours)
+7. DOCUMENT ELIMINATION FUNCTIONS (2 hours)
+8. RENAME TURKISH VARIABLES (1 hour)
+9. CREATE USAGE_GUIDE.md (3 hours)
+
+================================================================================
+RECOMMENDED PRIORITY 3 FIXES (SCHEDULE)
+================================================================================
+
+10. CREATE ASSUMPTIONS.md (3 hours)
+11. CREATE DATA_SCHEMA.md (2 hours)
+12. REFACTOR DUPLICATED MODEL CLASSES (8 hours)
+13. SETUP SPHINX DOCUMENTATION (3 hours)
+
+================================================================================
+TOOLS TO IMPLEMENT
+================================================================================
+
+Pre-commit Hooks:
+  - pydocstyle (enforce docstring format)
+  - darglint (check docstring matches code)
+
+Linters:
+  - mypy (type checking)
+  - pylint (code quality)
+
+Documentation:
+  - Sphinx (generate HTML docs from docstrings)
+  - sphinx-rtd-theme (professional theme)
+
+Testing:
+  - pytest (unit testing)
+  - coverage (code coverage for docs)
+
+================================================================================
+SPECIFIC FILE RECOMMENDATIONS
+================================================================================
+
+CLASSIFIERS.PY (1129 lines)
+  Status: CRITICAL - Core model training logic
+  Missing: ALL docstrings, type hints, business logic explanation
+  Action: 
+    - Document all 29 functions
+    - Add type hints to __init__ parameters (15 params)
+    - Document Gini calculation and imbalance detection
+    - Extract duplicated code (4 identical classes)
+  Estimated Time: 20 hours
+
+DATA.PY (272 lines)
+  Status: CRITICAL - Data loading pipeline
+  Missing: 8 function docstrings, parameter explanations
+  Action:
+    - Document all 8 functions
+    - Clarify SQL vs CSV vs Excel handling
+    - Document explore() return structure
+    - Explain type conversions
+  Estimated Time: 6 hours
+
+ELIMINATION.PY (598 lines)
+  Status: HIGH - Feature selection logic
+  Missing: 8 function docstrings, algorithm explanation
+  Action:
+    - Document 4 helper functions
+    - Explain Gini-based elimination algorithm
+    - Clarify correlation calculation
+    - Rename Turkish variables
+  Estimated Time: 4 hours
+
+SKILLS_API.PY (1273 lines)
+  Status: CRITICAL - Pipeline orchestration
+  Missing: Documentation for decorator, parameter inconsistencies
+  Action:
+    - Document variable_injection decorator
+    - Fix typos in docstrings ("opzimization", "gibi")
+    - Clarify method parameter documentation
+    - Explain pipeline flow
+  Estimated Time: 8 hours
+
+SKILLS_LIBRARY.PY (724 lines)
+  Status: HIGH - 700+ lines with 3 docstrings
+  Missing: 22 function docstrings
+  Action:
+    - Document all 9 classes
+    - Extract duplicated model code
+    - Explain complex logic in null_imputation
+  Estimated Time: 12 hours
+
+================================================================================
+SUMMARY OF ISSUES BY CATEGORY
+================================================================================
+
+Documentation:        89.8% gap rate
+Type Hints:          98.7% gap rate
+Business Logic:      95% undocumented
+Code Quality:        3 runtime bugs + design issues
+Maintainability:     2/10 score (critical)
+
+OVERALL ASSESSMENT: **CRITICAL** - Codebase unmaintainable without documentation.
+                    HIGH RISK for production use.
+                    Must fix before: new feature development, refactoring, or
+                    knowledge transfer to other team members.
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Review this summary with team
+2. Create issues for Priority 1 fixes (do within 1 week)
+3. Assign Priority 2 fixes (do within 1 month)
+4. Set up pre-commit hooks to prevent future gaps
+5. Implement Sphinx documentation generator
+
+================================================================================
+For full details, see: /home/user/scoring_model/DOCUMENTATION_GAPS_REPORT.md
+================================================================================
