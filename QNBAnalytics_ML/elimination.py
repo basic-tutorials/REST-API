@@ -6,11 +6,22 @@ from feature_engine.selection import DropConstantFeatures
 from feature_engine.dataframe_checks import check_X
 
 
-from feature_engine.variable_manipulation import (
-    _check_input_parameter_variables,
-    _find_or_check_numerical_variables,
-    _find_all_variables,
-)
+try:
+    # For feature_engine >= 1.4
+    from feature_engine.variable_handling import (
+        check_numerical_variables,
+        find_all_variables,
+    )
+    _find_or_check_numerical_variables = check_numerical_variables
+    _find_all_variables = find_all_variables
+    _check_input_parameter_variables = lambda x, y: None  # Not needed in newer versions
+except ImportError:
+    # For feature_engine < 1.4
+    from feature_engine.variable_manipulation import (
+        _check_input_parameter_variables,
+        _find_or_check_numerical_variables,
+        _find_all_variables,
+    )
 
 from feature_engine.tags import _return_tags
 
