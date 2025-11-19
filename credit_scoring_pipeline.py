@@ -69,7 +69,8 @@ class Config:
 
     # Credit score transformation parameters
     REFERENCE_SCORE = 200      # Anchor score
-    ODDS_AT_REFERENCE = 100    # Odds ratio at reference (100:1)
+    ODDS_AT_REFERENCE = 100    # Odds ratio at reference for final scoring (100:1)
+    ODDS_AT_REFERENCE_SEGMENTATION = 50  # Odds ratio for Layer 2 segmentation (50:1)
     POINTS_TO_DOUBLE = 20      # Points needed to double odds
 
     # Segmentation thresholds
@@ -658,8 +659,15 @@ class CreditScoringPipeline:
         print("="*60)
 
         # Calculate probability thresholds from score thresholds
-        good_threshold = score_to_probability(Config.GOOD_SCORE_THRESHOLD)
-        not_good_threshold = score_to_probability(Config.NOT_GOOD_SCORE_THRESHOLD)
+        # NOTE: Uses ODDS_AT_REFERENCE_SEGMENTATION (50) to match original notebook behavior
+        good_threshold = score_to_probability(
+            Config.GOOD_SCORE_THRESHOLD,
+            odds_at_ref=Config.ODDS_AT_REFERENCE_SEGMENTATION
+        )
+        not_good_threshold = score_to_probability(
+            Config.NOT_GOOD_SCORE_THRESHOLD,
+            odds_at_ref=Config.ODDS_AT_REFERENCE_SEGMENTATION
+        )
 
         print(f"Good threshold (prob): {good_threshold:.4f}")
         print(f"Not-Good threshold (prob): {not_good_threshold:.4f}")
