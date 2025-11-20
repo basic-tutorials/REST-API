@@ -673,4 +673,465 @@ open Output/SCORING_RESULTS_training.xlsx
 
 ---
 
+## 📊 Dataset Structure and Requirements
+
+### Input Data Schema
+
+The pipeline expects loan application data with the following structure:
+
+#### Required Columns
+
+| Column | Type | Description | Example |
+|--------|------|-------------|---------|
+| `MUQAVILE` | String/Integer | Unique contract/application ID | "CONT_123456" |
+| `TARGET` | Integer | Binary target (0=good, 1=default) | 0 or 1 |
+
+#### Feature Categories
+
+The system processes multiple feature types representing applicant credit history:
+
+**1. Credit Bureau Features**
+
+Features follow the naming convention: `{ProductType}_{Status}_{TimePeriod}_{Metric}`
+
+- **Product Types:**
+  - `CC` - Credit Card
+  - `CL` - Consumer Loan
+  - `HL` - Housing Loan
+  - `OL` - Other Loan
+  - `ALL` - All products combined
+  - `CCOL` - Credit Card + Other Loan
+
+- **Status:**
+  - `O` - Open accounts
+  - `C` - Closed accounts
+  - `A` - All accounts
+
+- **Time Periods:**
+  - `3M` - Last 3 months
+  - `4M6M` - 4-6 months ago
+  - `7M12M` - 7-12 months ago
+  - `13M24M` - 13-24 months ago
+  - `EVER` - All time history
+
+- **Metrics:**
+  - `WPS` - Worst Payment Status
+  - `CWPS` - Current Worst Payment Status
+  - `LMT` - Limit
+  - `UTL` - Utilization
+  - `DP` - Days Past due periods
+
+**Example Features:**
+```
+CC_O_3MWPS_EVER          # Credit Card, Open, Worst Payment Status (3 months), Ever
+CL_A_CWPS_90D            # Consumer Loan, All, Current WPS, Last 90 days
+HL_O_EVERWPS_365DP       # Housing Loan, Open, Ever WPS, 365+ days past due
+ALL_OSMLMT_CWPS1_6_EVER  # All products, Open Small Limit, CWPS 1-6, Ever
+```
+
+**2. Demographic Features**
+
+Common demographic variables (examples):
+- Age, Gender, Education Level
+- Employment Status, Income
+- Marital Status, Dependents
+- Geographic Location
+
+**3. Application Features**
+
+Loan application specific:
+- Requested Amount
+- Loan Purpose
+- Collateral Type
+- Debt-to-Income Ratio
+
+### Sample Dataset Structure
+
+```python
+import pandas as pd
+
+# Example training data structure
+sample_data = pd.DataFrame({
+    'MUQAVILE': ['CONT_001', 'CONT_002', 'CONT_003'],
+    'TARGET': [0, 1, 0],
+    'CC_O_3MWPS_EVER': [0, 2, 0],
+    'CL_A_CWPS_90D': [1, 3, 0],
+    'HL_O_EVERWPS_365DP': [0, 0, 1],
+    'AGE': [35, 42, 28],
+    'INCOME': [5000, 3500, 6000],
+    'LOAN_AMOUNT': [10000, 15000, 8000],
+    # ... ~50-200 more features
+})
+
+print(f"Shape: {sample_data.shape}")  # Expected: (n_samples, 50-200 features)
+```
+
+### Data Quality Requirements
+
+#### Minimum Requirements
+
+- **Sample Size:**
+  - Training: Minimum 10,000 samples (recommended 50,000+)
+  - Each segment should have at least 1,000 samples after split
+
+- **Target Distribution:**
+  - Default rate: 5-20% recommended
+  - Sufficient positive (default) cases for model training
+
+- **Feature Quality:**
+  - Missing values: <90% per feature (pipeline removes >99%)
+  - No duplicate contract IDs in index
+
+#### Excluded Features
+
+The pipeline automatically excludes these columns (defined in `Config.COLS_TO_DROP`):
+
+```python
+COLS_TO_DROP = [
+    "CC_O_4M6MWPS_EVER",      # High missing rate
+    "ALL_O_4M6MWPS_EVER_O",   # High missing rate
+    "HL_EVERWPS_EVER",        # Potential target leakage
+    "BGN",                    # Manual override flag (business rule)
+    # ... 25 total features excluded
+]
+```
+
+**Exclusion Reasons:**
+- ❌ High missing value rates (>99% null)
+- ❌ Potential target leakage (derived from outcome period)
+- ❌ Business rule overrides (manual interventions)
+
+---
+
+## 📈 Expected Pipeline Outputs
+
+### Training Output
+
+When running `python credit_scoring_pipeline.py --mode train`:
+
+#### 1. Console Output
+
+```
+============================================================
+CREDIT SCORING PIPELINE - TRAINING
+============================================================
+
+============================================================
+Loading Training Data
+============================================================
+Training data: 45230 samples, 152 features
+Test data: 11308 samples, 152 features
+
+============================================================
+LAYER 1: Training Base Model
+============================================================
+Step 1: Data exploration...
+Step 2: Null feature elimination...
+Step 3: Constant feature elimination...
+Step 4: Low Gini feature elimination...
+Step 5: Correlated feature elimination...
+Step 6: WOE Binning...
+Step 7: Training Logistic Regression...
+Base model training completed!
+
+============================================================
+LAYER 2: Training Segment Models
+============================================================
+Good threshold (prob): 0.0385
+Not-Good threshold (prob): 0.0196
+
+Good segment: 38542 samples
+Not-Good segment: 6688 samples
+
+Training GOOD segment models...
+  Training Logistic Regression...
+  Training Random Forest...
+  Training XGBoost...
+  Training LightGBM...
+GOOD segment training completed!
+
+Training NOT_GOOD segment models...
+  Training Logistic Regression...
+  Training Random Forest...
+  Training XGBoost...
+  Training LightGBM...
+NOT_GOOD segment training completed!
+
+============================================================
+LAYER 3: Training Meta Model
+============================================================
+Training Meta Logistic Regression...
+Meta model training completed!
+
+============================================================
+Saving Models
+============================================================
+Base model saved to: Models/base_model_training.pkl
+good model saved to: Models/good_model_training.pkl
+not_good model saved to: Models/not_good_model_training.pkl
+Meta model saved to: Models/meta_model_training.pkl
+
+============================================================
+Calculating Final Scores
+============================================================
+Scores saved to: Output/TRAINING_SCORES_training.xlsx
+
+Total training time: 0:15:32
+```
+
+#### 2. Model Files (Saved to `Models/`)
+
+```
+Models/
+├── base_model_training.pkl        # ~8 MB  - Layer 1 LR + WOE transformers
+├── good_model_training.pkl        # ~25 MB - Layer 2a LGBM + transformers
+├── not_good_model_training.pkl    # ~12 MB - Layer 2b LR + transformers
+├── meta_model_training.pkl        # ~2 MB  - Layer 3 LR
+└── binning.pkl                    # ~5 MB  - WOE binning transformers
+```
+
+#### 3. Training Results Excel (`Output/TRAINING_SCORES_training.xlsx`)
+
+| MUQAVILE | PROBA | SCORE | TARGET |
+|----------|-------|-------|--------|
+| CONT_001 | 0.0085 | 213.45 | 0 |
+| CONT_002 | 0.0342 | 185.23 | 1 |
+| CONT_003 | 0.0065 | 221.78 | 0 |
+| CONT_004 | 0.0523 | 172.34 | 1 |
+| ... | ... | ... | ... |
+
+**Column Descriptions:**
+- `MUQAVILE`: Contract ID (index)
+- `PROBA`: Final default probability (0-1)
+- `SCORE`: Credit score before policy adjustment
+- `TARGET`: Actual outcome (0=good, 1=default)
+
+### Scoring Output
+
+When running `python credit_scoring_pipeline.py --mode score`:
+
+#### 1. Console Output
+
+```
+============================================================
+CREDIT SCORING PIPELINE - SCORING
+============================================================
+
+Loading trained models...
+Base model loaded from: Models/base_model_training.pkl
+good model loaded from: Models/good_model_training.pkl
+not_good model loaded from: Models/not_good_model_training.pkl
+Meta model loaded from: Models/meta_model_training.pkl
+All models loaded successfully!
+
+Scoring 5234 applicants...
+Applying Layer 1 (Base)...
+Applying Layer 2 (Segments)...
+Applying Layer 3 (Meta)...
+Results saved to: Output/SCORING_RESULTS_training.xlsx
+```
+
+#### 2. Scoring Results Excel (`Output/SCORING_RESULTS_training.xlsx`)
+
+| MUQAVILE | PROBA | RAW_SCORE | FINAL_SCORE | TARGET |
+|----------|-------|-----------|-------------|--------|
+| CONT_NEW_001 | 0.0075 | 217.89 | 206.99 | 0 |
+| CONT_NEW_002 | 0.0125 | 202.45 | 192.33 | 0 |
+| CONT_NEW_003 | 0.0450 | 176.23 | 167.42 | 1 |
+| CONT_NEW_004 | 0.0035 | 235.67 | 223.89 | 0 |
+| CONT_NEW_005 | 0.0012 | 272.34 | 237.50 | 0 |
+| ... | ... | ... | ... | ... |
+
+**Column Descriptions:**
+- `MUQAVILE`: Contract ID (index)
+- `PROBA`: Final default probability from meta model (0-1)
+- `RAW_SCORE`: Credit score before policy adjustment
+- `FINAL_SCORE`: Final score after policy adjustment
+  - Capped at 250
+  - Discounted by 5% (×0.95)
+  - Formula: `min(raw_score, 250, raw_score × 0.95)`
+- `TARGET`: Actual outcome if available (optional)
+
+### Score Interpretation Guide
+
+#### Score Ranges and Risk Levels
+
+```mermaid
+graph LR
+    A[250-220<br/>Excellent<br/>< 0.5% default] --> B[220-200<br/>Good<br/>0.5-1% default]
+    B --> C[200-180<br/>Fair<br/>1-3% default]
+    C --> D[180-160<br/>Poor<br/>3-6% default]
+    D --> E[< 160<br/>High Risk<br/>> 6% default]
+
+    style A fill:#d4edda
+    style B fill:#d1ecf1
+    style C fill:#fff3cd
+    style D fill:#f8d7da
+    style E fill:#dc3545,color:#fff
+```
+
+#### Example Score Conversions
+
+| Probability | Raw Score | Final Score (After Policy) | Risk Level |
+|-------------|-----------|---------------------------|------------|
+| 0.005 (0.5%) | 220 | 209 | Excellent |
+| 0.01 (1%) | 200 | 190 | Good |
+| 0.02 (2%) | 180 | 171 | Fair |
+| 0.04 (4%) | 166 | 158 | Poor |
+| 0.08 (8%) | 146 | 139 | High Risk |
+
+### Performance Validation
+
+After training, validate the model using these metrics:
+
+```python
+import pandas as pd
+from sklearn.metrics import roc_auc_score, classification_report
+
+# Load training results
+results = pd.read_excel('Output/TRAINING_SCORES_training.xlsx')
+
+# Calculate AUC
+auc = roc_auc_score(results['TARGET'], results['PROBA'])
+print(f"AUC: {auc:.4f}")  # Expected: 0.75-0.82
+
+# Calculate Gini
+gini = 2 * auc - 1
+print(f"Gini: {gini:.4f}")  # Expected: 0.50-0.65
+
+# Score distribution by target
+print("\nScore Distribution:")
+print(results.groupby('TARGET')['SCORE'].describe())
+```
+
+**Expected Output:**
+```
+AUC: 0.7845
+Gini: 0.5690
+
+Score Distribution:
+       count       mean       std    min     25%     50%     75%     max
+TARGET
+0      42156.0  205.34   18.23  142.5  192.1  206.7  219.8  245.3
+1       2382.0  178.45   22.67  125.8  161.3  177.2  195.6  228.1
+```
+
+---
+
+## 🔄 Complete Workflow Example
+
+### End-to-End Usage
+
+```python
+from credit_scoring_pipeline import CreditScoringPipeline, Config
+import pandas as pd
+
+# ============================================================
+# Step 1: Configure (Optional - edit Config class)
+# ============================================================
+# Edit credit_scoring_pipeline.py Config class if needed
+# Or use defaults
+
+# ============================================================
+# Step 2: Initialize Pipeline
+# ============================================================
+pipeline = CreditScoringPipeline()
+
+# ============================================================
+# Step 3: Train Models
+# ============================================================
+print("Training pipeline...")
+training_results = pipeline.train()
+
+# View training results
+print("\nTraining Results Summary:")
+print(f"Total samples: {len(training_results)}")
+print(f"Average score: {training_results['SCORE'].mean():.2f}")
+print(f"Default rate: {training_results['TARGET'].mean():.2%}")
+
+# ============================================================
+# Step 4: Score New Applicants
+# ============================================================
+print("\nScoring new applicants...")
+
+# Option A: Score from database (uses Config.SCORING_SQL_FILE)
+scoring_results = pipeline.score()
+
+# Option B: Score custom DataFrame
+new_applicants = pd.read_csv('new_applicants.csv')
+new_applicants = new_applicants.set_index('MUQAVILE')
+scoring_results = pipeline.score(x_data=new_applicants)
+
+# ============================================================
+# Step 5: Analyze Results
+# ============================================================
+print("\nScoring Results Summary:")
+print(scoring_results['FINAL_SCORE'].describe())
+
+# Segment by risk level
+bins = [0, 160, 180, 200, 220, 300]
+labels = ['High Risk', 'Poor', 'Fair', 'Good', 'Excellent']
+scoring_results['RISK_LEVEL'] = pd.cut(
+    scoring_results['FINAL_SCORE'],
+    bins=bins,
+    labels=labels
+)
+
+print("\nRisk Distribution:")
+print(scoring_results['RISK_LEVEL'].value_counts())
+
+# ============================================================
+# Step 6: Make Decisions
+# ============================================================
+# Example: Approve if score >= 180
+scoring_results['DECISION'] = scoring_results['FINAL_SCORE'].apply(
+    lambda x: 'APPROVE' if x >= 180 else 'DECLINE'
+)
+
+print("\nDecision Summary:")
+print(scoring_results['DECISION'].value_counts())
+
+# Export for review
+scoring_results.to_excel('Output/final_decisions.xlsx')
+```
+
+**Expected Console Output:**
+```
+Training pipeline...
+[Training logs...]
+Total training time: 0:15:32
+
+Training Results Summary:
+Total samples: 56538
+Average score: 203.45
+Default rate: 4.21%
+
+Scoring new applicants...
+Scoring 5234 applicants...
+[Scoring logs...]
+
+Scoring Results Summary:
+count    5234.000000
+mean      198.234567
+std        19.456789
+min       132.450000
+25%       185.670000
+50%       199.120000
+75%       212.340000
+max       237.500000
+
+Risk Distribution:
+Good         1876
+Fair         1623
+Excellent    1245
+Poor          398
+High Risk      92
+
+Decision Summary:
+APPROVE    4744
+DECLINE     490
+```
+
+---
+
 For questions or support, contact the QNBAnalytics ML Team.
