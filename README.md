@@ -387,6 +387,70 @@ scoring_model/
 
 ---
 
+## 🚀 Getting Started with Sample Data
+
+For testing and development without Oracle database access, use the sample data generator:
+
+### Step 1: Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Step 2: Generate Sample Data
+
+```bash
+python generate_sample_data.py
+```
+
+This creates:
+- `Data/sample_train_data.csv` - 10,000 training samples
+- `Data/sample_test_data.csv` - 2,500 test samples
+- `Data/sample_score_data.csv` - 1,000 scoring samples
+
+### Step 3: Test the Pipeline
+
+```bash
+python test_pipeline_with_sample_data.py
+```
+
+This will:
+1. Load sample CSV files
+2. Train all 3 layers (Base → Segments → Meta)
+3. Score new applicants
+4. Generate performance metrics
+5. Save models and results
+
+**Expected Output:**
+```
+Phase 1: Training Pipeline
+  - Training Gini: 0.56-0.65
+  - Time: ~3-5 minutes
+
+Phase 2: Scoring New Applicants
+  - 1,000 applicants scored
+  - Results saved to Output/
+
+✓ All phases completed successfully!
+```
+
+### Step 4: Review Results
+
+- **Models:** `Models/*.pkl` - Trained pipeline artifacts
+- **Training Scores:** `Output/TRAINING_SCORES_training.xlsx`
+- **Scoring Results:** `Output/SCORING_RESULTS_training.xlsx`
+
+### Sample Data Features
+
+The generated data includes:
+- **Credit Bureau Features:** 20+ features (CC, CL, HL, OL products)
+- **Demographics:** Age, income, education, employment
+- **Application Data:** Loan amount, purpose, DTI ratio
+- **Realistic Distributions:** Correlated with default likelihood
+- **Missing Values:** ~2-6% missing to simulate real data
+
+---
+
 ## 📖 Usage
 
 ### Command-Line Interface
