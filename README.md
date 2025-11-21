@@ -244,6 +244,189 @@ sequenceDiagram
 
 ---
 
+## 🧠 Understanding the Model Architecture (Simple Explanation)
+
+### How Does the System Work?
+
+Think of the credit scoring system as a **3-stage decision-making process**:
+
+```
+┌─────────────────────────────────────────┐
+│    ONE APPLICANT (100+ features)        │
+└────────────┬────────────────────────────┘
+             │
+   ┌─────────┼─────────┐
+   ▼         ▼         ▼
+┌──────┐ ┌──────┐ ┌──────┐
+│Layer1│ │Layer2│ │Layer2│
+│ Base │ │ Good │ │NotGood│
+└──┬───┘ └──┬───┘ └──┬───┘
+   │ 0.015  │ 0.009  │ 0.022
+   └────────┼────────┘
+            │ (3 probabilities)
+            ▼
+      ┌──────────┐
+      │ Layer 3  │ ← Combines all
+      │   Meta   │
+      └────┬─────┘
+           │
+           ▼
+    Final = 0.012  ← YOUR ANSWER!
+```
+
+### Step-by-Step: How One Applicant Gets Scored
+
+Let's follow **Applicant CONT_001** through the system:
+
+#### **Input Data (100+ features)**
+```
+MUQAVILE: CONT_001
+AGE: 42
+INCOME: 5000
+CC_O_3MWPS_EVER: 0 (no bad payment history on credit card)
+CL_A_CWPS_90D: 1 (slight payment delay on consumer loan)
+... (95+ more features)
+```
+
+#### **Layer 1: Base Model** (Foundation for Everyone)
+
+**What it does:** Gives initial risk assessment for ALL applicants
+
+```
+100+ Features → WOE Binning → Logistic Regression → Probability
+
+Result: base_prob = 0.015 (1.5% default risk)
+        base_score = 210
+```
+
+**Key Point:** This score determines which specialized models to use next!
+
+---
+
+#### **Layer 2: Specialized Models** (Experts for Different Groups)
+
+Based on Layer 1 score, the system applies specialized models:
+
+**2a. Good Segment Model (LightGBM)**
+- **When applied:** Score < 180 (low-risk applicants)
+- **For CONT_001:** Score is 210, borderline → Still applied
+- **Why LGBM:** Captures subtle patterns among similar good applicants
+
+```
+100+ Features → Scaling → Imputation → Target Encoding → LGBM
+
+Result: good_prob = 0.009 (0.9% default risk)
+```
+
+**2b. Not-Good Segment Model (Logistic Regression)**
+- **When applied:** Score ≥ 200 (higher-risk applicants)
+- **For CONT_001:** Score is 210 → Applied
+- **Why LR:** Provides stability for high-risk segment
+
+```
+100+ Features → Scaling → Imputation → Target Encoding → LR
+
+Result: notgood_prob = 0.022 (2.2% default risk)
+```
+
+---
+
+#### **Layer 3: Meta Model** (Final Decision Maker)
+
+**What it does:** Intelligently combines all previous predictions
+
+**Input:** Only 3 numbers (the probabilities from Layers 1 & 2)
+```python
+Feature_1 = base_prob    = 0.015  # From Layer 1
+Feature_2 = good_prob    = 0.009  # From Layer 2a
+Feature_3 = notgood_prob = 0.022  # From Layer 2b
+```
+
+**Process:**
+```
+Meta Model learns weights during training:
+  weight_base = 0.3
+  weight_good = 0.5
+  weight_notgood = 0.2
+
+Final calculation:
+  final_prob = (0.3 × 0.015) + (0.5 × 0.009) + (0.2 × 0.022)
+  final_prob = 0.012  (1.2% default risk)
+```
+
+**Result:** The meta model decided to trust the Good model more!
+
+---
+
+#### **Final Step: Convert to Credit Score**
+
+```python
+# Probability → Score conversion
+final_prob = 0.012
+odds = (1 / 0.012) - 1 = 82.33
+
+raw_score = ((log(82.33) - log(100)) / log(2)) × 20 + 200
+raw_score = 195
+
+# Policy Adjustment (cap at 250, discount 5%)
+final_score = min(195, 250, 195 × 0.95)
+final_score = 185
+```
+
+**FINAL OUTPUT:**
+```
+┌─────────────────────────────────────┐
+│ MUQAVILE:     CONT_001              │
+│ PROBABILITY:  0.012  (1.2% default) │
+│ RAW_SCORE:    195                   │
+│ FINAL_SCORE:  185                   │
+│ RISK_LEVEL:   Fair                  │
+└─────────────────────────────────────┘
+```
+
+### Where Do All Model Outputs Go?
+
+**Simple Answer:**
+
+| Model | Sees | Produces | Goes To |
+|-------|------|----------|---------|
+| **Layer 1** (Base) | 100+ original features | base_prob = 0.015 | → Layer 3 |
+| **Layer 2a** (Good) | 100+ original features | good_prob = 0.009 | → Layer 3 |
+| **Layer 2b** (Not-Good) | 100+ original features | notgood_prob = 0.022 | → Layer 3 |
+| **Layer 3** (Meta) | 3 probabilities only | **final_prob = 0.012** | **FINAL OUTPUT** |
+
+**Key Insight:** Layers 1, 2a, 2b all see the SAME 100+ features. Only Layer 3 is different - it sees ONLY the 3 probabilities!
+
+### Why Does This Work Better?
+
+**Problem with Single Model:**
+```
+All applicants → One Model → Prediction
+```
+❌ Can't specialize for different risk groups
+❌ Treats everyone the same
+
+**Our 3-Layer Solution:**
+```
+Good applicant    → Layer 1 + Good Model → Meta → Trusts Good Model
+Medium applicant  → Layer 1 + Both Models → Meta → Balances all three
+Bad applicant     → Layer 1 + NotGood Model → Meta → Trusts NotGood Model
+```
+✅ Specialized models for each segment
+✅ Meta model learns which to trust
+
+**Real Example:**
+
+| Applicant | Layer 1 | Layer 2a (Good) | Layer 2b (NotGood) | Layer 3 (Final) | What Meta Learned |
+|-----------|---------|-----------------|--------------------|--------------------|-------------------|
+| Excellent | 0.005 | **0.003** ✓ | 0.010 | **0.004** | Trust Good model |
+| Medium | 0.015 | 0.009 | 0.022 | **0.012** | Balance all three |
+| Poor | 0.045 | 0.020 | **0.055** ✓ | **0.050** | Trust NotGood model |
+
+✓ = Which model the meta model trusts most
+
+---
+
 ## 🤔 Design Rationale
 
 ### Why 3-Layer Hierarchical Architecture?
@@ -452,6 +635,123 @@ The generated data includes:
 ---
 
 ## 📖 Usage
+
+### Using Original Notebooks with CSV/XLSX Files
+
+If you want to use the **original 2 notebooks** with your own CSV/XLSX data instead of Oracle database:
+
+#### Files to Use
+1. **BOB_Scorecard_Training.ipynb** - Train 3-layer model
+2. **BOB_Scorecard_Scoring_Policy_Adjustment.ipynb** - Score new applicants
+
+#### Step 1: Prepare Your Data
+
+Create CSV or XLSX files:
+
+```csv
+MUQAVILE,TARGET,CC_O_3MWPS_EVER,CL_A_CWPS_90D,AGE,INCOME,...
+CONT_001,0,0,1,42,5000,...
+CONT_002,1,2,3,35,3500,...
+```
+
+Save to:
+```
+Data/
+├── train_data.csv       # Training data
+├── test_data.csv        # Test data
+└── score_data.csv       # New applicants
+```
+
+#### Step 2: Modify BOB_Scorecard_Training.ipynb
+
+Find **Cell 10** (database loading) and replace with:
+
+```python
+############ READ DATA FROM CSV/XLSX ############
+
+# Option 1: CSV
+train = pd.read_csv('Data/train_data.csv')
+test = pd.read_csv('Data/test_data.csv')
+
+# Option 2: Excel (uncomment if using XLSX)
+# train = pd.read_excel('Data/train_data.xlsx')
+# test = pd.read_excel('Data/test_data.xlsx')
+
+# Process data
+train = train.set_index(index_col).rename(columns={target_col: "TARGET"})
+y_train = train["TARGET"]
+x_train = train.drop(columns=["TARGET"]+cols_to_drop, inplace=False)
+
+test = test.set_index(index_col).rename(columns={target_col: "TARGET"})
+y_test = test["TARGET"]
+x_test = test.drop(columns=["TARGET"]+cols_to_drop, inplace=False)
+
+print(f"Training: {x_train.shape}, Default rate: {y_train.mean():.2%}")
+print(f"Test: {x_test.shape}, Default rate: {y_test.mean():.2%}")
+```
+
+Also comment out **Cell 9** (sorted_indices) if not using:
+```python
+# ############ (OPTIONAL) DATA ORDER ############
+# sorted_indices = pd.read_excel("Data/sorted_indices.xlsx")
+# ...
+```
+
+#### Step 3: Modify BOB_Scorecard_Scoring_Policy_Adjustment.ipynb
+
+Replace data loading cell with:
+
+```python
+############ READ SCORING DATA FROM CSV/XLSX ############
+
+# Option 1: CSV
+new_data = pd.read_csv('Data/score_data.csv')
+
+# Option 2: Excel
+# new_data = pd.read_excel('Data/score_data.xlsx')
+
+new_data = new_data.set_index(index_col)
+
+# If TARGET exists (for validation)
+if 'TARGET' in new_data.columns:
+    new_data = new_data.rename(columns={target_col: "TARGET"})
+    y_new = new_data["TARGET"]
+    x_new = new_data.drop(columns=["TARGET"]+cols_to_drop, inplace=False)
+else:
+    # Production scoring (no target)
+    x_new = new_data.drop(columns=cols_to_drop, errors='ignore', inplace=False)
+    y_new = None
+
+print(f"Scoring data: {x_new.shape}")
+```
+
+#### Step 4: Run the Notebooks
+
+**Training Notebook:**
+1. Run all cells in order
+2. Layer 1 (Base) trains in ~5-10 minutes
+3. Layer 2 (Segments) trains in ~10-15 minutes
+4. Layer 3 (Meta) trains in ~2-3 minutes
+5. Models saved to `Models/` directory
+
+**Expected Output:**
+```
+Base model took: 0:07:37
+Models saved:
+  - Models/base_model_training.pkl
+  - Models/good_model_training.pkl
+  - Models/not_good_model_training.pkl
+  - Models/meta_model_training.pkl
+
+Scores saved to: Output/MAIN_SCORES_training.xlsx
+```
+
+**Scoring Notebook:**
+1. Load trained models
+2. Score new applicants (1000 applicants in ~1-2 minutes)
+3. Results saved to `Output/SCORING_RESULTS_training.xlsx`
+
+---
 
 ### Command-Line Interface
 
