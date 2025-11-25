@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(venv/Scripts/pip.exe install:*)",
+      "Bash(where:*)",
+      "Bash(C:/Users/iasamadov/AppData/Local/Programs/Python/Python314/python.exe:*)",
+      "Bash(venv/Scripts/jupyter.exe nbconvert:*)",
+      "Bash(cat:*)",
+      "Bash(C:UsersiasamadovDesktopscoring_modelvenvScriptspython.exe -c \"import sys, json; nb = json.load(sys.stdin); print(json.dumps(nb[''''cells''''][13][''''outputs''''], indent=2))\")",
+      "Bash(C:/Users/iasamadov/Desktop/scoring_model/venv/Scripts/python.exe -c \"import json; nb = json.load(open(''BOB_Scorecard_Training.ipynb'')); [print(str(o)) for o in nb[''cells''][13][''outputs'']]\")",
+      "Bash(venvScriptspython.exe -c \"import sys; print(''Python executable:'', sys.executable); print(''Can import module:'', end='' ''); import QNBAnalytics_ML.elimination; print(''SUCCESS'')\")",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(dir:*)",
+      "Bash(if not exist Figures mkdir Figures)",
+      "Bash(timeout /t 10)",
+      "Bash(venvScriptspython.exe -c \"import json; nb = json.load(open(''BOB_Scorecard_Training.ipynb'')); cells = [(i, c.get(''id'', ''no-id'')[:8], c[''source''][:100] if isinstance(c[''source''], str) else ''''.join(c[''source''][:2])) for i, c in enumerate(nb[''cells'']) if ''base_test_proba_dict'' in str(c.get(''source'', ''''))]; print(''\\n''.join([f''Cell {i}: {cid} - {src[:80]}...'' for i, cid, src in cells[:10]]))\")",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

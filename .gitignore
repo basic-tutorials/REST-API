@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Large data files
+*.csv
+Data/datamart_full.xlsx
+Data/*.xlsx
+
+# Large model files (pickle files can be huge)
+Models/*.pkl
+*.pkl
+
+# Output files
+Output/
+Figures/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
