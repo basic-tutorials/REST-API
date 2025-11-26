@@ -21,7 +21,11 @@
       "Bash(git commit:*)",
       "Bash(git remote:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(if [ -f \"Data/data.csv\" ])",
+      "Bash(then echo \"CSV exists\")",
+      "Bash(else echo \"CSV not found - conversion still running\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []
