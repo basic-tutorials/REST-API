@@ -25,7 +25,15 @@
       "Bash(if [ -f \"Data/data.csv\" ])",
       "Bash(then echo \"CSV exists\")",
       "Bash(else echo \"CSV not found - conversion still running\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(venv/Scripts/jupyter nbconvert:*)",
+      "Bash(jupyter nbconvert:*)",
+      "Bash(del \"C:\\Users\\iasamadov\\Desktop\\scoring_model\\temp_notebook_analysis.py\")",
+      "Bash(else echo \"CSV not found\")",
+      "Bash(del fix_cell3.py)",
+      "Bash(del temp_cell3_fix.py)",
+      "Bash(del cell3_with_fix.py)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []
