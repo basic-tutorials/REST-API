@@ -13,8 +13,6 @@ Models/*.pkl
 *.pkl
 
 # Output files
-Output/
-Figures/
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
