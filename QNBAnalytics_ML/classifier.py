@@ -241,8 +241,8 @@ class LogisticRegression:
 
         self.train_prob = self.model.predict_proba(x_train)[:, 1]
         self.train_gini = 2 * roc_auc_score(y_train, self.train_prob) - 1
-        logger.info(f"With ROC: {roc_auc_score(y_train, self.train_prob)}")
-        logger.info(f"With gini: {self.train_gini}")
+        logger.info("With ROC: " % roc_auc_score(y_train, self.train_prob))
+        logger.info("With gini: " % (self.train_gini))
 
     def predict(self, x_test, y_test=[], sample='Validation'):
         logger = getLogger()
@@ -470,8 +470,8 @@ class RandomForest:
 
         self.train_prob = self.model.predict_proba(x_train)[:, 1]
         self.train_gini = 2 * roc_auc_score(y_train, self.train_prob) - 1
-        logger.info(f"With ROC: {roc_auc_score(y_train, self.train_prob)}")
-        logger.info(f"With gini: {self.train_gini}")
+        logger.info("With ROC: " % roc_auc_score(y_train, self.train_prob))
+        logger.info("With gini: " % (self.train_gini))
 
     def predict(self, x_test, y_test=[], sample='Validation'):
         logger = getLogger()
@@ -758,8 +758,8 @@ class LGBM:
 
         self.train_prob = self.model.predict_proba(x_train)[:, 1]
         self.train_gini = 2 * roc_auc_score(y_train, self.train_prob) - 1
-        logger.info(f"With ROC: {roc_auc_score(y_train, self.train_prob)}")
-        logger.info(f"With gini: {self.train_gini}")
+        logger.info("With ROC: " % roc_auc_score(y_train, self.train_prob))
+        logger.info("With gini: " % (self.train_gini))
 
     def predict(self, x_test, y_test=[], sample='Validation'):
         logger = getLogger()
@@ -1056,8 +1056,8 @@ class XGBoost:
 
         self.train_prob = self.model.predict_proba(x_train)[:, 1]
         self.train_gini = 2 * roc_auc_score(y_train, self.train_prob) - 1
-        logger.info(f"With ROC: {roc_auc_score(y_train, self.train_prob)}")
-        logger.info(f"With gini: {self.train_gini}")
+        logger.info("With ROC: " % roc_auc_score(y_train, self.train_prob))
+        logger.info("With gini: " % (self.train_gini))
 
     def predict(self, x_test, y_test=[], sample='Validation'):
         logger = getLogger()

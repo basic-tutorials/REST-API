@@ -2,7 +2,7 @@ import inspect
 import warnings
 import sys
 
-import shap
+#import shap
 import pandas as pd
 import numpy as np
 from sklearn.base import is_classifier

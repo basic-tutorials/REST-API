@@ -6,27 +6,11 @@ from feature_engine.selection import DropConstantFeatures
 from feature_engine.dataframe_checks import check_X
 
 
-try:
-    # For feature_engine >= 1.4
-    from feature_engine.variable_handling import (
-        check_numerical_variables,
-        find_all_variables,
-        find_numerical_variables,
-        retain_variables_if_in_df,
-    )
-    _find_or_check_numerical_variables = check_numerical_variables
-    _find_all_variables = find_all_variables
-    _find_numerical_variables = find_numerical_variables
-    _retain_variables_if_in_df = retain_variables_if_in_df
-    _check_input_parameter_variables = lambda x: None  # Not needed in newer versions
-except ImportError:
-    # For feature_engine < 1.4
-    from feature_engine.variable_manipulation import (
-        _check_input_parameter_variables,
-        _find_or_check_numerical_variables,
-        _find_all_variables,
-    )
-    _retain_variables_if_in_df = None  # Not available in older versions
+from feature_engine.variable_manipulation import (
+    _check_input_parameter_variables,
+    _find_or_check_numerical_variables,
+    _find_all_variables,
+)
 
 from feature_engine.tags import _return_tags
 
@@ -184,20 +168,11 @@ class DropLowGiniFeatures(BaseSelector):
         if not (2 <= n_class <= 1000):
             raise ValueError(f"Too many classes ({n_class}). Please check y.")
 
-        # find all numerical variables or check those entered are in the dataframe
-        if self.variables is None:
-            # Get all numerical variables by default
-            self.variables_ = _find_numerical_variables(X)
-        else:
-            # Get user-specified variables
-            if self.confirm_variables and _retain_variables_if_in_df is not None:
-                variables = _retain_variables_if_in_df(X, self.variables)
-            else:
-                variables = self.variables
+        # If required exclude variables that are not in the input dataframe
+        self._confirm_variables(X)
 
-            # Filter to only numerical variables (intersect with numerical columns)
-            numerical_vars = _find_numerical_variables(X)
-            self.variables_ = [v for v in variables if v in numerical_vars]
+        # find all numerical variables or check those entered are in the dataframe
+        self.variables_ = _find_or_check_numerical_variables(X, self.variables_)
 
         self.features_to_drop_ = set()
         self.gini_table = {}
@@ -348,13 +323,11 @@ class DropNullFeatures(BaseSelector):
         # check input dataframe
         X = check_X(X)
 
+        # If required exclude variables that are not in the input dataframe
+        self._confirm_variables(X)
+
         # find all variables or check those entered are present in the dataframe
-        if self.variables is None:
-            self.variables_ = _find_all_variables(X)
-        elif self.confirm_variables and _retain_variables_if_in_df is not None:
-            self.variables_ = _retain_variables_if_in_df(X, self.variables)
-        else:
-            self.variables_ = self.variables
+        self.variables_ = _find_all_variables(X, self.variables_)
 
         # save input features
         self._get_feature_names_in(X)
@@ -556,20 +529,11 @@ class DropCorrelatedLowerGiniFeatures(BaseSelector):
         # check input dataframe
         X = check_X(X)
 
-        # find all numerical variables or check those entered are in the dataframe
-        if self.variables is None:
-            # Get all numerical variables by default
-            self.variables_ = _find_numerical_variables(X)
-        else:
-            # Get user-specified variables
-            if self.confirm_variables and _retain_variables_if_in_df is not None:
-                variables = _retain_variables_if_in_df(X, self.variables)
-            else:
-                variables = self.variables
+        # If required exclude variables that are not in the input dataframe
+        self._confirm_variables(X)
 
-            # Filter to only numerical variables (intersect with numerical columns)
-            numerical_vars = _find_numerical_variables(X)
-            self.variables_ = [v for v in variables if v in numerical_vars]
+        # find all numerical variables or check those entered are in the dataframe
+        self.variables_ = _find_or_check_numerical_variables(X, self.variables_)
 
         # save input features
         self._get_feature_names_in(X)

@@ -97,8 +97,8 @@ def variable_injection(func):
             rest_variables_df = pre_train_df[
                 ~pre_train_df['index'].isin(used_columns)]
             rest_variables_df.loc[:,"use"] = False
-            self.variable_table = pd.concat(
-                [self.variable_table, rest_variables_df], ignore_index=True)
+            self.variable_table = self.variable_table.append(
+                rest_variables_df, ignore_index=True)
             if self.target:
                 self.variable_table = self.variable_table[
                     self.variable_table['index'] != self.target]
