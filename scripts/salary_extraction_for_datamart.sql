@@ -1,53 +1,115 @@
+/*
+================================================================================
+SALARY DATA EXTRACTION FOR DATAMART
+================================================================================
+Purpose: Extract and calculate net salary for customers from ASAN Finance data
+Source:  scoring.mkr_data, ibs.asan_finance_is_yeri_v2
+Output:  YEKUN_FOR_DATAMART (fincode, id, salary)
+
+Logic:
+  1. Get distinct customers from MKR data
+  2. Map FIN code to client_code via dpartcode_dbt (codekind=101)
+  3. Map client_code to rskod via dpartcode_dbt (codekind=1)
+  4. Get latest salary record from ASAN Finance
+  5. Convert gross salary to net using calc_net_from_gross function
+================================================================================
+*/
+
 DROP TABLE YEKUN_FOR_DATAMART;
 
 CREATE TABLE YEKUN_FOR_DATAMART AS
 
-with a as
-(select distinct a.id,a.fin fincode,a.mkr_date request_date from scoring.mkr_data a),----CEDVELI DEYISH
+WITH
+-- =============================================================================
+-- STEP 1: Get distinct customers from MKR (Credit Bureau) data
+-- =============================================================================
+mkr_customers AS (
+    SELECT DISTINCT
+        id,
+        fin         AS fincode,
+        mkr_date    AS request_date
+    FROM scoring.mkr_data
+),
 
-b as 
-(select a.*,d.t_partyid client_code from a a, dwmain.dpartcode_dbt d
-where a.fincode=d.t_code
-and d.t_codekind=101),
+-- =============================================================================
+-- STEP 2: Map FIN code to internal client code (codekind=101)
+-- =============================================================================
+fin_to_client AS (
+    SELECT
+        mkr.id,
+        mkr.fincode,
+        mkr.request_date,
+        party.t_partyid AS client_code
+    FROM mkr_customers mkr
+    INNER JOIN dwmain.dpartcode_dbt party
+        ON mkr.fincode = party.t_code
+        AND party.t_codekind = 101
+),
 
-c as
-(select b.*, d.t_code rskod from b b, dwmain.dpartcode_dbt d
-where b.client_code=d.t_partyid
-and d.t_codekind=1),
+-- =============================================================================
+-- STEP 3: Map client code to RS code (codekind=1) - used for join only
+-- =============================================================================
+client_to_rskod AS (
+    SELECT
+        fc.id,
+        fc.fincode,
+        fc.request_date,
+        fc.client_code,
+        party.t_code AS rskod
+    FROM fin_to_client fc
+    INNER JOIN dwmain.dpartcode_dbt party
+        ON fc.client_code = party.t_partyid
+        AND party.t_codekind = 1
+),
 
+-- =============================================================================
+-- STEP 4: Get latest salary from ASAN Finance work records
+-- =============================================================================
+latest_salary AS (
+    SELECT
+        mkr.fincode,
+        mkr.id,
+        NVL(asan.t_emp_salary, 0)   AS salary,
+        2                            AS l_work_sector_vat  -- IBS.CONST_SCORING_CAMUNDA.SECTOR_OZEL
+    FROM mkr_customers mkr
+    INNER JOIN ibs.asan_finance_is_yeri_v2@ibs_ro asan
+        ON mkr.fincode = asan.t_fin_code
+        AND asan.t_contract_status_desc IS NOT NULL
+        -- Get only the latest record per customer
+        AND asan.t_id = (
+            SELECT MAX(k.t_id)
+            FROM ibs.asan_finance_is_yeri_v2@ibs_ro k
+            WHERE k.t_fin_code = asan.t_fin_code
+        )
+),
 
-d as
-(select 
-fincode,
-id,
-l_work_sector_vat,
-sum(salary) salary
-from 
-(select fincode,
-id,
-NVL(salary,0) salary,
-  2--IBS.CONST_SCORING_CAMUNDA.SECTOR_OZEL
-l_work_sector_vat --HAFIZA 11/27/2024
-from 
-(select
-distinct
-b.fincode,
-b.id,
-a.t_employer_voen voen,
-trunc(a.t_insert_date) insert_date,
-a.t_emp_salary salary,
-a.t_id
-,a.t_nn
-from ibs.asan_finance_is_yeri_v2@ibs_ro a, a b
-where a.t_fin_code=b.fincode
-AND A.T_ID IN (SELECT MAX(T_ID) FROM ibs.asan_finance_is_yeri_v2@ibs_ro K WHERE K.T_FIN_CODE = A.T_FIN_CODE)
---and trunc(a.t_insert_date)=b.request_date
-and a.t_contract_status_desc is not null) x )
-group by fincode,id, l_work_sector_vat)
+-- =============================================================================
+-- STEP 5: Aggregate salary per customer (in case of multiple records)
+-- =============================================================================
+aggregated_salary AS (
+    SELECT
+        fincode,
+        id,
+        l_work_sector_vat,
+        SUM(salary) AS salary
+    FROM latest_salary
+    GROUP BY fincode, id, l_work_sector_vat
+)
 
-
-
-
-select d.fincode,d.id, nvl(ibs.api_scoring_camunda_main.calc_net_from_gross@ibs_ro(d.salary,L_WORK_SECTOR_VAT),salary) salary from d
-left join c on c.fincode=d.fincode
-and c.id=d.id; 
+-- =============================================================================
+-- FINAL: Calculate net salary from gross using IBS function
+-- =============================================================================
+SELECT
+    agg.fincode,
+    agg.id,
+    NVL(
+        ibs.api_scoring_camunda_main.calc_net_from_gross@ibs_ro(
+            agg.salary,
+            agg.l_work_sector_vat
+        ),
+        agg.salary
+    ) AS salary
+FROM aggregated_salary agg
+LEFT JOIN client_to_rskod rsk
+    ON agg.fincode = rsk.fincode
+    AND agg.id = rsk.id;
