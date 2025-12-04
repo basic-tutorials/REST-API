@@ -1,4 +1,128 @@
+/*
+================================================================================
+CREDIT BUREAU DATAMART - FEATURE ENGINEERING FOR SCORING MODEL
+================================================================================
+Purpose: Transform raw credit bureau (MKR) data into scoring model features
+Source:  MKR_DATA (imported from Excel/credit bureau)
+Output:  Multiple feature tables aggregated at customer (ID) level
 
+================================================================================
+TABLE CREATION FLOW
+================================================================================
+
+Stage 1: Data Preparation
+  - MKR_DATA_1:  Customer demographic data (deduplicated)
+  - MKR_DATA_2:  Loan/liability details (credit type, amounts, status)
+  - MKR_DATA_3:  Payment history (overdue periods and days)
+
+Stage 2: Product Derivation
+  - MKR_PRODUCT: Derived fields including:
+    * CREDIT_TYPE_DRV: Mapped credit types (001=Consumer, 002=Auto, 003=Credit Card, 300=Mortgage)
+    * Currency conversion to AZN (USD=1.7, EUR=1.9, RUB=0.025)
+    * CREDIT_STATUS_DRV: Simplified status (001=Closed Good, 007=Open, 008=Closed Bad)
+    * ACCOUNT_PAYMENT_STATUS: Payment history string for WPS calculation
+    * INSTALLMENT_AMOUNT: Calculated monthly payment
+
+Stage 3: Feature Aggregation (MKR_LONGLIST_TMP1-16)
+  Temporary tables calculating features by product type:
+  - TMP1:  Consumer Loans (CL_) count features
+  - TMP2:  Home Loans/Mortgage (HL_) count features
+  - TMP3:  Credit Cards (CC_) count features
+  - TMP4:  Overdraft Lines (OL_) count features
+  - TMP5:  Credit Cards + Overdrafts combined (CCOL_)
+  - TMP6:  All Consumer + Home Loans (CHL_) count features
+  - TMP7:  All Products (ALL_) count features
+  - TMP8:  Bank count features
+  - TMP9:  Consumer Loans (CL_) amount features
+  - TMP10: Home Loans (HL_) amount features
+  - TMP11-16: Additional amount aggregations
+
+Stage 4: Final Feature Tables
+  - MKR_LONGLIST_OPNCNT:  Open loan count features (all product types)
+  - MKR_LONGLIST_OTHRCNT: Other count features (closed, bad, etc.)
+  - MKR_LONGLIST_OPNAMT:  Open loan amount features
+  - MKR_LONGLIST_OTHRAMT: Other amount features
+  - MKR_LONGLIST_PERF:    Credit limit utilization ratios
+  - MKR_LONGLIST_SCR_CODES: Score adjustment codes
+
+================================================================================
+FEATURE NAMING CONVENTIONS
+================================================================================
+
+Product Type Prefixes:
+  CL_    = Consumer Loans (CREDIT_TYPE_DRV = '001')
+  HL_    = Home Loans / Mortgage (CREDIT_TYPE_DRV = '300')
+  CC_    = Credit Cards (CREDIT_TYPE_DRV = '003')
+  OL_    = Overdraft Lines (CREDIT_TYPE_DRV = '002')
+  CCOL_  = Credit Cards + Overdrafts combined
+  CHL_   = Consumer + Home Loans combined
+  ALL_   = All product types
+
+Feature Type Suffixes:
+  CNT_   = Count of loans
+  OCNT_  = Open loan count (CREDIT_STATUS_DRV = '007')
+  GDCLSCNT_ = Good closed count (CREDIT_STATUS_DRV = '001')
+  BDCLSCNT_ = Bad closed count (CREDIT_STATUS_DRV = '008')
+
+  OSMAMT_   = Open sum of initial amounts
+  OSMTOB_   = Open sum of total outstanding balance
+  OSMLMT_   = Open sum of credit limits
+  OSMINS_   = Open sum of installment amounts
+  OAVGINS_  = Open average installment
+  OLMTUTL_  = Open limit utilization ratio
+
+Time Window Suffixes:
+  _EVER       = All time / lifetime
+  _30D        = Last 30 days
+  _90D        = Last 90 days
+  _182D       = Last 6 months (182 days)
+  _183D365D   = 6-12 months ago
+  _365D       = Last 12 months
+  _730D       = Last 24 months
+  _1095D      = Last 36 months
+
+Payment Status Suffixes (WPS = Worst Payment Status):
+  _CWPS0_     = Current WPS = 0 (current/on-time)
+  _CWPS1_6_   = Current WPS between 1-6 (30-180 DPD)
+  _CWPS6P_    = Current WPS > 6 (180+ DPD)
+  _CWPSUD_    = Current WPS undefined
+  _6MWPS_X_   = Worst status in last 6 months = X
+  _12MWPS_X_  = Worst status in last 12 months = X
+  _24MWPS_X_  = Worst status in last 24 months = X
+  _36MWPS_X_  = Worst status in last 36 months = X
+
+Other Suffixes:
+  _O          = Excluding own bank (Bank of Baku)
+  _MXDLQ0_    = Max delinquency = 0 in last 12 months
+  _MXDLQ1_    = Max delinquency <= 1 in last 12 months
+  _DLQ2_      = Contains delinquency status 2 in last 12 months
+  _DLQ3_      = Contains delinquency status 3 in last 12 months
+
+================================================================================
+CREDIT STATUS CODES
+================================================================================
+  001 = Closed (Good) - includes 010, 012
+  007 = Open/Active - includes 002, 004, 006, 009
+  008 = Closed (Bad/Default) - includes 003, 011, or 180+ DPD
+
+================================================================================
+DEPENDENCIES
+================================================================================
+  - Requires: MKR_DATA table (imported from credit bureau)
+  - Functions: WPS(), ACCPYMTSTDRV() (from credit_bureau_utility_functions.sql)
+
+================================================================================
+LAST UPDATED: 04.03.2025
+================================================================================
+*/
+
+
+-- =============================================================================
+-- STAGE 1: DATA PREPARATION
+-- =============================================================================
+
+----------------------------------------
+-- MKR_DATA_1: Customer Demographics (Deduplicated)
 ----------------------------------------
 DROP TABLE MKR_DATA_1;
 CREATE TABLE MKR_DATA_1  AS
@@ -13,8 +137,10 @@ MKR_DATA--IMPORTED FROM EXCEL
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_DATA_2: Loan/Liability Details
+----------------------------------------
 DROP TABLE MKR_DATA_2;
 CREATE TABLE MKR_DATA_2  AS
 
@@ -62,8 +188,10 @@ MKR_DATA--IMPORTED FROM EXCEL
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_DATA_3: Payment History (Overdue Periods)
+----------------------------------------
 DROP TABLE MKR_DATA_3;
 CREATE TABLE MKR_DATA_3 PARALLEL 8 AS
 
@@ -88,7 +216,16 @@ MKR_DATA--IMPORTED FROM EXCEL
 
 ;
 COMMIT;
----------------------------------------------------------------------------new_updated--04.03.2025---------
+
+
+-- =============================================================================
+-- STAGE 2: PRODUCT DERIVATION
+-- =============================================================================
+-- Derive key fields: credit type, currency conversion, status, payment string
+
+----------------------------------------
+-- MKR_PRODUCT: Derived Product Fields (Updated 04.03.2025)
+----------------------------------------
 DROP TABLE MKR_PRODUCT;
 CREATE TABLE MKR_PRODUCT PARALLEL 8 AS
 
@@ -226,8 +363,15 @@ FROM
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+
+-- =============================================================================
+-- STAGE 3: FEATURE AGGREGATION BY PRODUCT TYPE
+-- =============================================================================
+
+----------------------------------------
+-- TMP1: Consumer Loan (CL_) Count Features
+----------------------------------------
 DROP TABLE MKR_LONGLIST_TMP1;
 CREATE TABLE MKR_LONGLIST_TMP1 PARALLEL 8 AS
 
@@ -361,8 +505,10 @@ GROUP BY A.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- TMP2: Home Loan / Mortgage (HL_) Count Features
+----------------------------------------
 DROP TABLE MKR_LONGLIST_TMP2;
 CREATE TABLE MKR_LONGLIST_TMP2 PARALLEL 8 AS
 
@@ -496,8 +642,10 @@ GROUP BY A.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- TMP3: Credit Card (CC_) Count Features
+----------------------------------------
 DROP TABLE MKR_LONGLIST_TMP3;
 CREATE TABLE MKR_LONGLIST_TMP3 PARALLEL 8 AS
 
@@ -674,8 +822,10 @@ GROUP BY A.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- TMP4: Overdraft Line (OL_) Count Features
+----------------------------------------
 DROP TABLE MKR_LONGLIST_TMP4;
 CREATE TABLE MKR_LONGLIST_TMP4 PARALLEL 8 AS
 
@@ -852,9 +1002,11 @@ GROUP BY A.ID
 
 ;
 COMMIT;
-------------------------------------------------------------------------
 
-DROP TABLE MKR_LONGLIST_TMP5; 
+----------------------------------------
+-- TMP5: Credit Card + Overdraft Combined (CCOL_) Count Features
+----------------------------------------
+DROP TABLE MKR_LONGLIST_TMP5;
 CREATE TABLE MKR_LONGLIST_TMP5 PARALLEL 8 AS
 
 SELECT  A.ID,
@@ -2395,7 +2547,7 @@ SELECT  A.ID,
         COUNT(DISTINCT (CASE WHEN MKR_DATE - GRANTED_ON BETWEEN  91 AND 365 THEN BANK_ID END)) AS ALL_ALLBNK_91D365D,
         COUNT(DISTINCT (CASE WHEN MKR_DATE - GRANTED_ON BETWEEN   0 AND 182 THEN BANK_ID END)) AS ALL_ALLBNK_182D,
         COUNT(DISTINCT (CASE WHEN MKR_DATE - GRANTED_ON BETWEEN 183 AND 365 THEN BANK_ID END)) AS ALL_ALLBNK_183D365D,
-		------ Bank of Baku hariç ------
+		------ Bank of Baku hariï¿½ ------
         COUNT(DISTINCT (CASE WHEN OWN_DATA_FLAG = 0 THEN BANK_ID END)) AS ALL_ALLBNK_EVER_O,
         COUNT(DISTINCT (CASE WHEN OWN_DATA_FLAG = 0 AND MKR_DATE - GRANTED_ON BETWEEN   0 AND  90 THEN BANK_ID END)) AS ALL_ALLBNK_90D_O,
         COUNT(DISTINCT (CASE WHEN OWN_DATA_FLAG = 0 AND MKR_DATE - GRANTED_ON BETWEEN  91 AND 365 THEN BANK_ID END)) AS ALL_ALLBNK_91D365D_O,
@@ -2457,10 +2609,16 @@ GROUP BY ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
-------------------------------- FINAL TABLES -----------------------------------
---------------------------------------------------------------------------------
 
+
+-- =============================================================================
+-- STAGE 4: FINAL FEATURE TABLES
+-- =============================================================================
+-- Consolidate all temporary tables into final feature sets
+
+----------------------------------------
+-- MKR_LONGLIST_OPNCNT: Open Loan Count Features (All Products)
+----------------------------------------
 DROP TABLE MKR_LONGLIST_OPNCNT;
 CREATE TABLE MKR_LONGLIST_OPNCNT PARALLEL 8 AS
 
@@ -3206,8 +3364,10 @@ AND K1.ID = K4.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_LONGLIST_OTHRCNT: Other Count Features (Closed, Bad, etc.)
+----------------------------------------
 DROP TABLE MKR_LONGLIST_OTHRCNT;
 CREATE TABLE MKR_LONGLIST_OTHRCNT PARALLEL 8 AS
 
@@ -3614,8 +3774,10 @@ AND K1.ID = K5.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_LONGLIST_OPNAMT: Open Loan Amount Features
+----------------------------------------
 DROP TABLE MKR_LONGLIST_OPNAMT;
 CREATE TABLE MKR_LONGLIST_OPNAMT PARALLEL 8 AS
 
@@ -4689,8 +4851,10 @@ AND K.ID = M.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_LONGLIST_OTHRAMT: Other Amount Features (Closed, Historical)
+----------------------------------------
 DROP TABLE MKR_LONGLIST_OTHRAMT;
 CREATE TABLE MKR_LONGLIST_OTHRAMT PARALLEL 8 AS
 
@@ -5506,8 +5670,10 @@ AND K.ID = M.ID
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_LONGLIST_PERF: Performance/Payment History Features
+----------------------------------------
 DROP TABLE MKR_LONGLIST_PERF;
 CREATE TABLE MKR_LONGLIST_PERF PARALLEL 8 AS
 
@@ -5516,8 +5682,10 @@ FROM MKR_LONGLIST_TMP13 K13
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
 
+----------------------------------------
+-- MKR_LONGLIST_OTHR: Other Derived Features (Age, Tenor, etc.)
+----------------------------------------
 DROP TABLE MKR_LONGLIST_OTHR;
 CREATE TABLE MKR_LONGLIST_OTHR PARALLEL 8 AS
 
@@ -5765,9 +5933,13 @@ MKR_LONGLIST_OPNAMT K
 
 ;
 COMMIT;
---------------------------------------------------------------------------------
+
+----------------------------------------
+-- MKR_LONGLIST_SCR_CODES: Score Adjustment Codes
+-- Business rules for score penalties/multipliers based on payment behavior
+----------------------------------------
 DROP TABLE MKR_LONGLIST_SCR_CODES;
-CREATE TABLE MKR_LONGLIST_SCR_CODES PARALLEL 8 AS--NEW
+CREATE TABLE MKR_LONGLIST_SCR_CODES PARALLEL 8 AS
 
 SELECT  A.*,
         LEAST(NVL(SC1, 9999), NVL(SC2, 9999), NVL(SC8,9999)) AS SCR_CONSTANT,
