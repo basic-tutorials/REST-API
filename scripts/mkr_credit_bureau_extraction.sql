@@ -134,7 +134,7 @@ WITH mkr_data AS (
     -- DATE FILTER
     -- =========================================================================
     WHERE TRUNC(TO_DATE(qnb.mkr_date, 'DD.MM.YYYY'))
-        BETWEEN TO_DATE('&t', 'DD.MM.YYYY')
-            AND TO_DATE('&t1', 'DD.MM.YYYY')
+        BETWEEN TO_DATE('01.01.2018', 'DD.MM.YYYY')
+            AND TO_DATE('01.01.2018', 'DD.MM.YYYY')
 )
 SELECT * FROM mkr_data;
