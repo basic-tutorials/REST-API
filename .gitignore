@@ -2,7 +2,8 @@
 __pycache__/
 *.pyc
 venv/
-
+.claude/
+.env/
 # Large data files
 *.csv
 Data/datamart_full.xlsx
