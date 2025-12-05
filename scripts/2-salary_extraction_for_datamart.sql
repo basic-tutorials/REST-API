@@ -4,7 +4,7 @@ SALARY DATA EXTRACTION FOR DATAMART
 ================================================================================
 Purpose: Extract and calculate net salary for customers from ASAN Finance data
 Source:  scoring.mkr_data, ibs.asan_finance_is_yeri_v2
-Output:  YEKUN_FOR_DATAMART (fincode, id, salary)
+Output:  fincode, id, salary (net)
 
 Logic:
   1. Get distinct customers from MKR data
@@ -14,10 +14,6 @@ Logic:
   5. Convert gross salary to net using calc_net_from_gross function
 ================================================================================
 */
-
-DROP TABLE YEKUN_FOR_DATAMART;
-
-CREATE TABLE YEKUN_FOR_DATAMART AS
 
 WITH
 -- =============================================================================
